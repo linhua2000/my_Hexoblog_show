@@ -1,0 +1,314 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>平衡小车（直立环 + 速度环串级调参） | Zero create</title><meta name="author" content="lin hua"><meta name="copyright" content="lin hua"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="这是一篇个人向的调参记录。我用 STM32F103C8T6 + MPU6050（DMP 解算） 把一辆两轮平衡小车从「根本站不住」调到「能稳定直立、能被推动后自己回正」。把过程整理成教程，是为了让后来的学弟学妹少走弯路——很多坑看起来是玄学，其实都是极性、时序和调参顺序的问题。 两轮平衡小车用的是串级 PID：  内环（直立环）：角度环，本质是 PD，让车「站住」。 外环（速度环）：本质是 PI，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="平衡小车（直立环 + 速度环串级调参）">
+<meta property="og:url" content="http://example.com/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/index.html">
+<meta property="og:site_name" content="Zero create">
+<meta property="og:description" content="这是一篇个人向的调参记录。我用 STM32F103C8T6 + MPU6050（DMP 解算） 把一辆两轮平衡小车从「根本站不住」调到「能稳定直立、能被推动后自己回正」。把过程整理成教程，是为了让后来的学弟学妹少走弯路——很多坑看起来是玄学，其实都是极性、时序和调参顺序的问题。 两轮平衡小车用的是串级 PID：  内环（直立环）：角度环，本质是 PD，让车「站住」。 外环（速度环）：本质是 PI，">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/img/%E5%A4%B4%E5%83%8F.jpg">
+<meta property="article:published_time" content="2026-09-06T06:20:46.000Z">
+<meta property="article:modified_time" content="2026-09-06T06:30:03.332Z">
+<meta property="article:author" content="lin hua">
+<meta property="article:tag" content="平衡小车">
+<meta property="article:tag" content="PID">
+<meta property="article:tag" content="STM32">
+<meta property="article:tag" content="MPU6050">
+<meta property="article:tag" content="调参">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/img/%E5%A4%B4%E5%83%8F.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "平衡小车（直立环 + 速度环串级调参）",
+  "url": "http://example.com/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/",
+  "image": "http://example.com/img/%E5%A4%B4%E5%83%8F.jpg",
+  "datePublished": "2026-09-06T06:20:46.000Z",
+  "dateModified": "2026-09-06T06:30:03.332Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "lin hua",
+      "url": "http://example.com"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://example.com/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: ture,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '平衡小车（直立环 + 速度环串级调参）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">9</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于我</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zero create</span></a><a class="nav-page-title" href="/"><span class="site-name">平衡小车（直立环 + 速度环串级调参）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于我</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">平衡小车（直立环 + 速度环串级调参）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-06T06:20:46.000Z" title="发表于 2026-09-06 14:20:46">2026-09-06</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-06T06:30:03.332Z" title="更新于 2026-09-06 14:30:03">2026-09-06</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%B5%8C%E5%85%A5%E5%BC%8F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">嵌入式学习笔记</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>这是一篇个人向的调参记录。我用 <strong>STM32F103C8T6</strong> + <strong>MPU6050（DMP 解算）</strong> 把一辆两轮平衡小车从「根本站不住」调到「能稳定直立、能被推动后自己回正」。把过程整理成教程，是为了让后来的学弟学妹少走弯路——很多坑看起来是玄学，其实都是<strong>极性、时序</strong>和<strong>调参顺序</strong>的问题。</p>
+<p>两轮平衡小车用的是<strong>串级 PID</strong>：</p>
+<ul>
+<li><strong>内环（直立环）</strong>：角度环，本质是 <strong>PD</strong>，让车「站住」。</li>
+<li><strong>外环（速度环）</strong>：本质是 <strong>PI</strong>，抑制小车缓慢溜走，让车「钉在原位」。</li>
+</ul>
+<p>调参口诀一句话：<strong>先极性、后大小；先直立环、后速度环。</strong></p>
+<hr>
+<h2 id="踩过的坑：姿态角度在哪读、别被打断"><a href="#踩过的坑：姿态角度在哪读、别被打断" class="headerlink" title="踩过的坑：姿态角度在哪读、别被打断"></a>踩过的坑：姿态角度在哪读、别被打断</h2><p><code>mpu_dmp_get_data()</code> 会通过 I2C 从 MPU6050 的 DMP 里读出解算好的姿态角（pitch &#x2F; roll &#x2F; yaw）。这个函数<strong>耗时较长（毫秒级），而且读取期间不可被打断</strong>——一旦在读取过程中被更高优先级的中断抢占，就会引入额外延时，角度环拿到的是一个「滞后&#x2F;不连续」的角度，车会莫名发抖甚至失控。</p>
+<p>我的做法是把它放在<strong>控制节拍的定时器中断</strong>里读取，并保证读取过程中不被更高优先级的中断打断：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 例：控制节拍定时器中断（如 5ms 一次）</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">TIMx_IRQHandler</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 清中断标志 ...</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取 DMP 姿态角：耗时且不可被打断</span></span><br><span class="line">    mpu_dmp_get_data(&amp;pitch, &amp;roll, &amp;yaw);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 拿到最新角度后，再在这里跑直立环 / 速度环运算 ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也有一种常见的替代做法：定时器中断里<strong>只置标志位</strong>，把 <code>mpu_dmp_get_data()</code> 放到主循环里读，两种都行，关键是<strong>别让读取过程被打断</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (Mpu6050_Flag)</span><br><span class="line">&#123;</span><br><span class="line">    Mpu6050_Flag = <span class="number">0</span>;</span><br><span class="line">    mpu_dmp_get_data(&amp;pitch, &amp;roll, &amp;yaw);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>提示：角度环用到的角度必须是「干净、最新」的。姿态读取的时序没安排好，后面调参时你会觉得参数怎么调都不对——先排除这个因素。</p>
+</blockquote>
+<hr>
+<h2 id="准备工作：先找「机械中值」"><a href="#准备工作：先找「机械中值」" class="headerlink" title="准备工作：先找「机械中值」"></a>准备工作：先找「机械中值」</h2><h3 id="为什么要机械中值"><a href="#为什么要机械中值" class="headerlink" title="为什么要机械中值"></a>为什么要机械中值</h3><p>角度环的输入是倾角。我们当然希望「车真正直立」时角度环输出为 0，但由于<strong>装配误差、重心位置、传感器零点漂移</strong>，整车的自然平衡点往往并不是 0°，而是某个小角度。</p>
+<p>如果直接把原始 pitch 当控制输入，直立环会把「已经直立但 pitch ≠ 0」误判成「在倾斜」，于是车会朝着一边偏倒。所以调直立环之前，先要测出这个<strong>机械中值</strong>，把它校准掉。</p>
+<h3 id="测量步骤"><a href="#测量步骤" class="headerlink" title="测量步骤"></a>测量步骤</h3><p>先把小车断电，用手轻轻扶住车身，让车轮刚好接触水平地面（如桌面），此时车体处于自然直立状态，<strong>不要人为施加外力</strong>。</p>
+<ol>
+<li><strong>前倒测试</strong>：慢慢将车体向前推（绕电机轴向前旋转），直到它因重心前移而<strong>自然向前倒下</strong>，记录下倒下瞬间的角度（例如 <code>+2°</code>）。</li>
+<li><strong>后倒测试</strong>：同样将车体向后拉，直到它<strong>自然向后倒下</strong>，记录倒下瞬间的角度（例如 <code>-3°</code>）。</li>
+<li><strong>取中值</strong>：两个倒下角度的平均值，就是机械中值。</li>
+</ol>
+<blockquote>
+<p><strong>机械中值 &#x3D;（前倒角度 + 后倒角度）÷ 2</strong></p>
+</blockquote>
+<h3 id="代码里怎么用"><a href="#代码里怎么用" class="headerlink" title="代码里怎么用"></a>代码里怎么用</h3><p>在 MPU6050 初始化后，读出机械中值并定义为常量，之后<strong>每次读到原始 pitch 都减去它</strong>，得到实际用于控制的倾角：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 机械中值通过上述方法测得，定义为常量</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> MECHANICAL_MIDDLE  -1.0f   <span class="comment">// 单位：度</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 实际用于控制的倾角</span></span><br><span class="line"><span class="type">float</span> actual_pitch = raw_pitch - MECHANICAL_MIDDLE;</span><br></pre></td></tr></table></figure>
+
+<p>后续直立环运算统一使用 <code>actual_pitch</code>，而不是 <code>raw_pitch</code>。</p>
+<hr>
+<h2 id="直立环（角度环，内环-PD）"><a href="#直立环（角度环，内环-PD）" class="headerlink" title="直立环（角度环，内环 PD）"></a>直立环（角度环，内环 PD）</h2><p>直立环让车「站住」。它本质是一个 PD 控制器：<strong>比例项</strong>用倾角决定回正力度，<strong>微分项</strong>常用陀螺角速度做「阻尼」，抑制角速度、防止过冲。</p>
+<p>调直立环的顺序是：<strong>先调 Kp 极性 → 再调 Kp 大小 → 再调 Kd 极性 → 再调 Kd 大小</strong>。极性错了再怎么调大小都白搭。</p>
+<h3 id="1-Kp-极性"><a href="#1-Kp-极性" class="headerlink" title="1. Kp 极性"></a>1. Kp 极性</h3><ul>
+<li><strong>极性错误</strong>：小车往哪边倒，车轮就往<strong>反方向</strong>开，会使得小车<strong>加速倒下</strong>。</li>
+<li><strong>极性正确</strong>：小车往哪边倒，车轮就往<strong>哪边</strong>开（朝倾倒的方向「追」），这样车轮才能跑到重心下方，给车一个回正的趋势。</li>
+</ul>
+<h3 id="2-Kp-大小"><a href="#2-Kp-大小" class="headerlink" title="2. Kp 大小"></a>2. Kp 大小</h3><p>极性确定后，把 Kp 从 0 开始<strong>一直加大</strong>，直到出现<strong>大幅、低频的振荡</strong>（整车左右来回摇晃）。这个临界点说明比例项已经强到足以让车回正，Kp 就取在这一带。</p>
+<h3 id="3-Kd-极性"><a href="#3-Kd-极性" class="headerlink" title="3. Kd 极性"></a>3. Kd 极性</h3><p>判据用「空中旋转测试」：<strong>拿起小车，绕电机轴旋转车体</strong>，观察车轮。</p>
+<ul>
+<li><strong>极性错误</strong>：车轮<strong>反向</strong>转动，无跟随。</li>
+<li><strong>极性正确</strong>：车轮<strong>同向</strong>转动，有跟随。</li>
+</ul>
+<p><strong>（1）为什么「同向转动」反而是正确的？</strong></p>
+<p>直觉上微分项是「抵抗角速度」的，车轮怎么反而跟着车体同向转？关键在于<strong>力矩的作用对象</strong>不同。</p>
+<p>在真实地面正常行驶时，车轮转动会<strong>通过地面摩擦对车体施加力矩</strong>。车体向前倾 → 车轮向前转 → 通过地面给车体一个<strong>向后的反作用力</strong> → 产生向后回正的力矩，从而扶正车体。所以「车轮向前转」的目的是产生「向后」的力矩——这是<strong>借助地面</strong>实现的。</p>
+<p>但把车「拿在空中」时没有地面摩擦负载，车轮转动几乎不会对车体产生力矩，于是车轮只是「空转」跟随车体的转动方向，反映的其实是控制器试图抵抗角速度的<strong>意图</strong>。在真实地面，这种同向转动对应的正是正确的阻尼作用。</p>
+<p><strong>（2）如何验证极性正确？</strong></p>
+<ul>
+<li><strong>静止直立</strong>：极性正确时小车能稳定直立；极性错误时会疯狂朝一个方向加速倒下。</li>
+<li><strong>空中旋转测试</strong>：用手快速转动车体，观察车轮方向。车轮与车体<strong>同向</strong> &#x3D; 极性正确；<strong>反向</strong> &#x3D; 错误。</li>
+</ul>
+<h3 id="4-Kd-大小"><a href="#4-Kd-大小" class="headerlink" title="4. Kd 大小"></a>4. Kd 大小</h3><p>极性确定后，把 Kd <strong>一直加大</strong>，直到出现<strong>高频振荡</strong>（轻轻触碰小车就剧烈抖动）。</p>
+<blockquote>
+<p>注意：Kd 的绝对值经验范围大约在 <strong>0.1 ~ 0.9</strong> 之间。我调到 <code>0.8</code> 时就出现了高频振荡，此时一定要<strong>及时断电</strong>，防止电机及驱动烧毁。</p>
+</blockquote>
+<h3 id="5-收尾：参数统一-×-0-6"><a href="#5-收尾：参数统一-×-0-6" class="headerlink" title="5. 收尾：参数统一 × 0.6"></a>5. 收尾：参数统一 × 0.6</h3><p>直立环调试完毕后，把确定下来的 <strong>Kp、Kd 统一乘以 0.6</strong> 作为最终参数。</p>
+<ul>
+<li><strong>原因</strong>：前面得到的 Kp、Kd 都是能让车立住的「临界&#x2F;最大」值，根据工程经验，平衡小车更理想的参数大约是最大参数的 <strong>×0.6</strong>。</li>
+<li><strong>结果</strong>：乘 0.6 后抖动消失，但直立效果也会变差（车变「软」、回正力度不足）。这是正常的——<strong>等下面加上速度环，性能就能补回来</strong>。</li>
+</ul>
+<hr>
+<h2 id="速度环（外环-PI）"><a href="#速度环（外环-PI）" class="headerlink" title="速度环（外环 PI）"></a>速度环（外环 PI）</h2><p>只靠直立环，车虽然「站得住」，但 PD 对角度差为 0 的情况没有输出，车会朝一个方向<strong>缓慢溜走</strong>。速度环（PI）就是为了抑制这种漂移：把车速&#x2F;位移拉回 0，让车不仅站住，还钉在原位。</p>
+<h3 id="调参前注意"><a href="#调参前注意" class="headerlink" title="调参前注意"></a>调参前注意</h3><ol>
+<li><strong>调【速度环参数极性】时，需要去掉【直立环运算】</strong>（注释掉），这样轮子的响应才不会被直立环干扰，能看清极性。</li>
+<li><strong>调【速度环参数大小】时，需要引入【直立环运算】</strong>，在真实闭环下验证效果。</li>
+<li>调极性之前，先确认<strong>编码器读数正负与 PWM 输出的正反转是否一致</strong>，否则判断会被误导。</li>
+<li>【转向环】整个调试过程始终处于关闭状态；若已提前调好参数，没注释影响也不大。</li>
+</ol>
+<h3 id="Kp-Ki"><a href="#Kp-Ki" class="headerlink" title="Kp &amp; Ki"></a>Kp &amp; Ki</h3><p>网上常用的线性关系：</p>
+<blockquote>
+<p><strong>Ki &#x3D; Kp ÷ 200</strong></p>
+</blockquote>
+<p>即 <strong>Ki 跟着 Kp 按比例取即可，只需要调 Kp</strong>。</p>
+<p><strong>Kp &amp; Ki 极性（此时直立环已注释）：</strong> 手动转动其中一个车轮，观察另一个轮：</p>
+<ul>
+<li><strong>极性错误</strong>：另一个车轮会以同样速度<strong>反向旋转</strong>——典型负反馈。</li>
+<li><strong>极性正确</strong>：两个车轮会<strong>同向加速</strong>，直至电机最大速度——典型正反馈。</li>
+</ul>
+<blockquote>
+<p>说明：这个「正确 &#x3D; 正反馈跑飞」的现象和直觉相反，它验证的其实是<strong>编码器与 PWM 的符号链路是否一致</strong>。链路一致时，闭环里速度环才能把漂移正确拉回 0。</p>
+</blockquote>
+<h3 id="调参流程"><a href="#调参流程" class="headerlink" title="调参流程"></a>调参流程</h3><ol>
+<li><strong>先调 Kp 大小</strong>：引入直立环后，把速度环 Kp 一直加大，直到「<strong>推动小车时小车能停下，但同时又出现抖动</strong>」。</li>
+<li><strong>回调角度环 Kd</strong>：用角度环的 Kd 把这个抖动抑制下去。</li>
+<li><strong>最后加速度环 Ki 微调</strong>：把 Ki 补上做微调。</li>
+</ol>
+<hr>
+<h2 id="转向环（待更新）"><a href="#转向环（待更新）" class="headerlink" title="转向环（待更新）"></a>转向环（待更新）</h2><p>转向环（让小车左右转向&#x2F;保持朝向）本次尚未调试，调试时保持关闭。后续更新。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>整个调参可以概括成一条流水线：</p>
+<ol>
+<li><strong>找机械中值</strong>，校准 pitch，统一用 <code>actual_pitch</code> 做控制输入。</li>
+<li><strong>调直立环（PD）</strong>：Kp 极性 → Kp 大小（到低频大幅振荡）→ Kd 极性（空中旋转同向）→ Kd 大小（到高频振荡）→ <strong>整体 ×0.6</strong>。</li>
+<li><strong>调速度环（PI）</strong>：调极性时去掉直立环、调大小时加回；先 Kp 到「推动停下且抖动」，回调角度环 Kd 抑制，最后加 Ki 微调。</li>
+<li><strong>转向环</strong>：保持关闭，待更新。</li>
+</ol>
+<blockquote>
+<p><strong>安全提醒</strong>：调参时出现<strong>高频剧烈抖动</strong>要立刻断电，防止电机与驱动烧毁；同时注意手和线别卷进轮子。</p>
+</blockquote>
+<p>参考教程：（待更新）</p>
+<p><em>最后更新：2026 年 9 月</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="http://example.com">lin hua</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://example.com/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/">http://example.com/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://example.com" target="_blank">Zero create</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/">平衡小车</a><a class="post-meta__tags" href="/tags/PID/">PID</a><a class="post-meta__tags" href="/tags/STM32/">STM32</a><a class="post-meta__tags" href="/tags/MPU6050/">MPU6050</a><a class="post-meta__tags" href="/tags/%E8%B0%83%E5%8F%82/">调参</a></div><div class="post-share"><div class="social-share" data-image="/img/%E5%A4%B4%E5%83%8F.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/08/28/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E7%BA%BF%E6%80%BB%E7%BB%93/" title="学习路线总结"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">学习路线总结</div></div><div class="info-2"><div class="info-item-1"> 作为一名物联网的普通学生，我在大一的时候其实也是挺困惑的，对自己的方向和专业不是很理解，上网查找呢，也经常看得云里雾里。为了帮助大家，也帮助过去的自己，我会把这一年我所学到的东西，以及实验室的路线进行一些总结（仅代表个人理解，如有偏颇，可发邮箱 &#49;&#x31;&#x30;&#54;&#x39;&#57;&#55;&#x31;&#x31;&#54;&#x40;&#x71;&#x71;&#46;&#99;&#x6f;&#109; 进行探讨）。  对物联网不够了解甚至不了解的，可以先观看以下视频（此视频只为概述，可建立大局观，但更详细的还需要自己进行思考）： 👉 物联网工程专业 | 超详细解读 实验室方向简介我们通信电子实验室有控制组、视觉组和信号组三个方向。  招新说明：目前招新方向分为控制和视觉（后续可转信号）。了解更多可加 QQ：1074289654（欢迎交流）。   基本定义硬件控制（嵌入式实时控制）核心任务：通过微控制器（MCU，如 STM32、ESP32），对外部物理量（温度、压力、位置、电流等）进行实时采样、逻辑判决与执行器驱动，形成闭环或开环控制系统。 系统...</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">lin hua</div><div class="author-info-description">STM32 / ESP32 / 电赛 / Python</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">9</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/linhua2000" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">welcome! This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E8%BF%87%E7%9A%84%E5%9D%91%EF%BC%9A%E5%A7%BF%E6%80%81%E8%A7%92%E5%BA%A6%E5%9C%A8%E5%93%AA%E8%AF%BB%E3%80%81%E5%88%AB%E8%A2%AB%E6%89%93%E6%96%AD"><span class="toc-number">1.</span> <span class="toc-text">踩过的坑：姿态角度在哪读、别被打断</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%EF%BC%9A%E5%85%88%E6%89%BE%E3%80%8C%E6%9C%BA%E6%A2%B0%E4%B8%AD%E5%80%BC%E3%80%8D"><span class="toc-number">2.</span> <span class="toc-text">准备工作：先找「机械中值」</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%BA%E6%A2%B0%E4%B8%AD%E5%80%BC"><span class="toc-number">2.1.</span> <span class="toc-text">为什么要机械中值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E9%87%8F%E6%AD%A5%E9%AA%A4"><span class="toc-number">2.2.</span> <span class="toc-text">测量步骤</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81%E9%87%8C%E6%80%8E%E4%B9%88%E7%94%A8"><span class="toc-number">2.3.</span> <span class="toc-text">代码里怎么用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%9B%B4%E7%AB%8B%E7%8E%AF%EF%BC%88%E8%A7%92%E5%BA%A6%E7%8E%AF%EF%BC%8C%E5%86%85%E7%8E%AF-PD%EF%BC%89"><span class="toc-number">3.</span> <span class="toc-text">直立环（角度环，内环 PD）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Kp-%E6%9E%81%E6%80%A7"><span class="toc-number">3.1.</span> <span class="toc-text">1. Kp 极性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Kp-%E5%A4%A7%E5%B0%8F"><span class="toc-number">3.2.</span> <span class="toc-text">2. Kp 大小</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-Kd-%E6%9E%81%E6%80%A7"><span class="toc-number">3.3.</span> <span class="toc-text">3. Kd 极性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-Kd-%E5%A4%A7%E5%B0%8F"><span class="toc-number">3.4.</span> <span class="toc-text">4. Kd 大小</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-%E6%94%B6%E5%B0%BE%EF%BC%9A%E5%8F%82%E6%95%B0%E7%BB%9F%E4%B8%80-%C3%97-0-6"><span class="toc-number">3.5.</span> <span class="toc-text">5. 收尾：参数统一 × 0.6</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%80%9F%E5%BA%A6%E7%8E%AF%EF%BC%88%E5%A4%96%E7%8E%AF-PI%EF%BC%89"><span class="toc-number">4.</span> <span class="toc-text">速度环（外环 PI）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B0%83%E5%8F%82%E5%89%8D%E6%B3%A8%E6%84%8F"><span class="toc-number">4.1.</span> <span class="toc-text">调参前注意</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Kp-Ki"><span class="toc-number">4.2.</span> <span class="toc-text">Kp &amp; Ki</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B0%83%E5%8F%82%E6%B5%81%E7%A8%8B"><span class="toc-number">4.3.</span> <span class="toc-text">调参流程</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%BD%AC%E5%90%91%E7%8E%AF%EF%BC%88%E5%BE%85%E6%9B%B4%E6%96%B0%EF%BC%89"><span class="toc-number">5.</span> <span class="toc-text">转向环（待更新）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/06/%E5%B9%B3%E8%A1%A1%E5%B0%8F%E8%BD%A6/" title="平衡小车（直立环 + 速度环串级调参）">平衡小车（直立环 + 速度环串级调参）</a><time datetime="2026-09-06T06:20:46.000Z" title="发表于 2026-09-06 14:20:46">2026-09-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/28/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E7%BA%BF%E6%80%BB%E7%BB%93/" title="学习路线总结">学习路线总结</a><time datetime="2026-08-27T16:00:00.000Z" title="发表于 2026-08-28 00:00:00">2026-08-28</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By lin hua</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div><div class="footer_custom_text">Hi, welcome to my blog.</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
